@@ -88,4 +88,7 @@ dependencies {
 
     implementation (libs.androidx.camera.view)
     implementation (libs.androidx.camera.extensions)
+
+    //add lib de detection
+    implementation(libs.objects.detection)
 }
