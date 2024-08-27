@@ -2,6 +2,8 @@ package com.alura.aifound.ui.camera
 
 import android.util.Log
 import android.util.Size
+import androidx.annotation.OptIn
+import androidx.camera.core.ExperimentalGetImage
 import androidx.camera.view.CameraController
 import androidx.camera.view.LifecycleCameraController
 import androidx.camera.view.PreviewView
@@ -40,8 +42,16 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.alura.aifound.data.Product
 import com.alura.aifound.extensions.dpToPx
+import com.google.mlkit.common.model.LocalModel
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.objects.DetectedObject
+import com.google.mlkit.vision.objects.ObjectDetection
+//import com.google.mlkit.vision.objects.custom.CustomObjectDetectorOptions
+import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions
+import com.google.mlkit.vision.objects.defaults.PredefinedCategory
 
 
+@OptIn(ExperimentalGetImage::class)
 @Composable
 fun CameraScreen(
     onNewProductDetected: (Product) -> Unit
@@ -50,11 +60,56 @@ fun CameraScreen(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current.applicationContext
 
+    val options = ObjectDetectorOptions.Builder()
+        .setDetectorMode(ObjectDetectorOptions.STREAM_MODE)
+        .enableClassification()  // Optional
+        .build()
+
+    val localModel = LocalModel.Builder()
+        //https://www.kaggle.com/models?publisher=google
+        .setAssetFilePath("model_products.tflite")
+        // or .setAbsoluteFilePath(absolute file path to model file)
+        // or .setUri(URI to model file)
+        .build()
+
+    /*val customObjectDetectorOptions =
+        CustomObjectDetectorOptions.Builder(localModel)
+            .setDetectorMode(CustomObjectDetectorOptions.STREAM_MODE)
+            .enableClassification()
+            .setClassificationConfidenceThreshold(0.5f)
+            .setMaxPerObjectLabelCount(3)
+            .build()*/
+
+    val objectDetector = remember { ObjectDetection.getClient(options) }
 
     val cameraAnalyzer = remember {
         CameraAnalyzer { imageProxy ->
             Log.d("CameraAnalyzer", "Image received: ${state.imageWidth}x${state.imageHeight}")
-            imageProxy.close()
+            val mediaImage = imageProxy.image
+            if (mediaImage != null) {
+                val image =
+                    InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+                objectDetector.process(image)
+                    .addOnSuccessListener { detectedObjects: MutableList<DetectedObject> ->
+                        detectedObjects.firstOrNull().let { detectedObject ->
+                            detectedObject?.let {
+                                val boundingBox = detectedObject.boundingBox
+                                val labels = detectedObject.labels.map { it.text }.toString()
+
+
+                                viewModel.setTextMessage("$labels - $boundingBox")
+                            }
+
+                            imageProxy.close()
+                        } ?: run {
+                            imageProxy.close()
+                        }
+                    }
+                // Pass image to an ML Kit Vision API
+                // ...
+            }
+
+
         }
     }
 

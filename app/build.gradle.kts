@@ -91,4 +91,5 @@ dependencies {
 
     //add lib de detection
     implementation(libs.objects.detection)
+    implementation(libs.objects.detection.custom)
 }
