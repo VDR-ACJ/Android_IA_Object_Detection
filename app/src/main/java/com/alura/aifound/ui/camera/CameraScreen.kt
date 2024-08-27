@@ -42,10 +42,12 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.alura.aifound.data.Product
 import com.alura.aifound.extensions.dpToPx
+import com.alura.aifound.sampleData.ProductSample
 import com.google.mlkit.common.model.LocalModel
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.objects.DetectedObject
 import com.google.mlkit.vision.objects.ObjectDetection
+import com.google.mlkit.vision.objects.custom.CustomObjectDetectorOptions
 //import com.google.mlkit.vision.objects.custom.CustomObjectDetectorOptions
 import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions
 import com.google.mlkit.vision.objects.defaults.PredefinedCategory
@@ -72,15 +74,15 @@ fun CameraScreen(
         // or .setUri(URI to model file)
         .build()
 
-    /*val customObjectDetectorOptions =
+    val customObjectDetectorOptions =
         CustomObjectDetectorOptions.Builder(localModel)
             .setDetectorMode(CustomObjectDetectorOptions.STREAM_MODE)
             .enableClassification()
             .setClassificationConfidenceThreshold(0.5f)
             .setMaxPerObjectLabelCount(3)
-            .build()*/
+            .build()
 
-    val objectDetector = remember { ObjectDetection.getClient(options) }
+    val objectDetector = remember { ObjectDetection.getClient(customObjectDetectorOptions) }
 
     val cameraAnalyzer = remember {
         CameraAnalyzer { imageProxy ->
@@ -96,8 +98,11 @@ fun CameraScreen(
                                 val boundingBox = detectedObject.boundingBox
                                 val labels = detectedObject.labels.map { it.text }.toString()
 
+                                val label = detectedObject.labels.firstOrNull()?.text.toString()
+                                //Busca o nome do produto detectado na base
+                                val product = ProductSample.findProductByName(label)
 
-                                viewModel.setTextMessage("$labels - $boundingBox")
+                                viewModel.setTextMessage("${product.name} - ${product.price}")
                             }
 
                             imageProxy.close()
