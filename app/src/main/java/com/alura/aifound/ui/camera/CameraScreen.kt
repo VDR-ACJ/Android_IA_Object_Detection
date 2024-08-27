@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -31,8 +32,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toComposeRect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.platform.rememberNestedScrollInteropConnection
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -42,6 +45,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.alura.aifound.data.Product
 import com.alura.aifound.extensions.dpToPx
+import com.alura.aifound.extensions.pxToDp
 import com.alura.aifound.sampleData.ProductSample
 import com.google.mlkit.common.model.LocalModel
 import com.google.mlkit.vision.common.InputImage
@@ -84,6 +88,27 @@ fun CameraScreen(
 
     val objectDetector = remember { ObjectDetection.getClient(customObjectDetectorOptions) }
 
+    var boundingBox by remember {
+        mutableStateOf(Rect(0f, 0f, 0f, 0f))
+    }
+    var coordinateX by remember {
+        mutableStateOf(0.dp)
+    }
+
+    var coordinateY by remember {
+        mutableStateOf(0.dp)
+    }
+
+    var imageSize by remember {
+        mutableStateOf(Size(1,1))
+    }
+    var screenSize by remember {
+        mutableStateOf(Size(1,1))
+    }
+
+    coordinateX = (boundingBox.topLeft.x / imageSize.width * screenSize.width).pxToDp()
+    coordinateY = (boundingBox.topLeft.y / imageSize.height * screenSize.height).pxToDp()
+
     val cameraAnalyzer = remember {
         CameraAnalyzer { imageProxy ->
             Log.d("CameraAnalyzer", "Image received: ${state.imageWidth}x${state.imageHeight}")
@@ -91,11 +116,19 @@ fun CameraScreen(
             if (mediaImage != null) {
                 val image =
                     InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+
+                imageSize = Size(image.width, image.height)
+
                 objectDetector.process(image)
                     .addOnSuccessListener { detectedObjects: MutableList<DetectedObject> ->
-                        detectedObjects.firstOrNull().let { detectedObject ->
-                            detectedObject?.let {
-                                val boundingBox = detectedObject.boundingBox
+                        detectedObjects.firstOrNull()?.let { detectedObject ->
+                            detectedObject.let {
+                                boundingBox = detectedObject.boundingBox.toComposeRect()
+
+                                // Essas variaveis seram atribuidas no inicio sendo ajustadas para a escala da tela
+                                //--coordinateX = detectedObject.boundingBox.left.dp
+                                //--coordinateY = detectedObject.boundingBox.top.dp
+
                                 val labels = detectedObject.labels.map { it.text }.toString()
 
                                 val label = detectedObject.labels.firstOrNull()?.text.toString()
@@ -138,7 +171,15 @@ fun CameraScreen(
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.2f))
     ) {
-        Text(
+        screenSize = Size(maxWidth.dpToPx().toInt(), maxHeight.dpToPx().toInt())
+
+        ObjectOverlay(
+            boundsObject = boundingBox,
+            nameObject = state.textMessage.toString(),
+            coordinateX = coordinateX,
+            coordinateY = coordinateY
+        )
+        /*Text(
             text = state.textMessage ?: "Nenhum produto detectado",
             fontSize = 20.sp,
             color = Color.White,
@@ -146,7 +187,7 @@ fun CameraScreen(
             modifier = Modifier
                 .padding(16.dp)
                 .fillMaxWidth()
-        )
+        )*/
 
         Log.d("CameraScreen", "Screen size: ${maxWidth.dpToPx()} x ${maxHeight.dpToPx()}")
     }
