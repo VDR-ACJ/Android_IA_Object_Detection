@@ -100,10 +100,10 @@ fun CameraScreen(
     }
 
     var imageSize by remember {
-        mutableStateOf(Size(1,1))
+        mutableStateOf(Size(1, 1))
     }
     var screenSize by remember {
-        mutableStateOf(Size(1,1))
+        mutableStateOf(Size(1, 1))
     }
 
     coordinateX = (boundingBox.topLeft.x / imageSize.width * screenSize.width).pxToDp()
@@ -123,7 +123,7 @@ fun CameraScreen(
                     .addOnSuccessListener { detectedObjects: MutableList<DetectedObject> ->
                         detectedObjects.firstOrNull()?.let { detectedObject ->
                             detectedObject.let {
-                                boundingBox = detectedObject.boundingBox.toComposeRect()
+
 
                                 // Essas variaveis seram atribuidas no inicio sendo ajustadas para a escala da tela
                                 //--coordinateX = detectedObject.boundingBox.left.dp
@@ -135,14 +135,20 @@ fun CameraScreen(
                                 //Busca o nome do produto detectado na base
                                 val product = ProductSample.findProductByName(label)
 
-                                if(product.name != state.textMessage) {
+                                if (product.name != state.textMessage) {
                                     onNewProductDetected(product)
                                 }
                                 viewModel.setTextMessage(product.name)
+                                boundingBox = if (state.textMessage.isNullOrEmpty()) {
+                                    Rect(0f, 0f, 0f, 0f)
+                                } else {
+                                    detectedObject.boundingBox.toComposeRect()
+                                }
                             }
 
                             imageProxy.close()
                         } ?: run {
+                            boundingBox = Rect(0f, 0f, 0f, 0f)
                             imageProxy.close()
                         }
                     }
