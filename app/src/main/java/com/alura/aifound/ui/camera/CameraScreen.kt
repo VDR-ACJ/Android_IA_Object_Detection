@@ -135,7 +135,10 @@ fun CameraScreen(
                                 //Busca o nome do produto detectado na base
                                 val product = ProductSample.findProductByName(label)
 
-                                viewModel.setTextMessage("${product.name} - ${product.price}")
+                                if(product.name != state.textMessage) {
+                                    onNewProductDetected(product)
+                                }
+                                viewModel.setTextMessage(product.name)
                             }
 
                             imageProxy.close()
