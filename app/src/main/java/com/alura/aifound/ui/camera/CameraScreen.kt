@@ -46,6 +46,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.alura.aifound.data.Product
 import com.alura.aifound.extensions.dpToPx
 import com.alura.aifound.extensions.pxToDp
+import com.alura.aifound.mlkit.ObjectDetectorProcessor
 import com.alura.aifound.sampleData.ProductSample
 import com.google.mlkit.common.model.LocalModel
 import com.google.mlkit.vision.common.InputImage
@@ -66,27 +67,11 @@ fun CameraScreen(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current.applicationContext
 
-    val options = ObjectDetectorOptions.Builder()
-        .setDetectorMode(ObjectDetectorOptions.STREAM_MODE)
-        .enableClassification()  // Optional
-        .build()
-
-    val localModel = LocalModel.Builder()
-        //https://www.kaggle.com/models?publisher=google
-        .setAssetFilePath("model_products.tflite")
-        // or .setAbsoluteFilePath(absolute file path to model file)
-        // or .setUri(URI to model file)
-        .build()
-
-    val customObjectDetectorOptions =
-        CustomObjectDetectorOptions.Builder(localModel)
-            .setDetectorMode(CustomObjectDetectorOptions.STREAM_MODE)
-            .enableClassification()
-            .setClassificationConfidenceThreshold(0.5f)
-            .setMaxPerObjectLabelCount(3)
-            .build()
-
-    val objectDetector = remember { ObjectDetection.getClient(customObjectDetectorOptions) }
+    val objectDetector = remember {
+        ObjectDetectorProcessor().apply {
+            setCustomModel("model_products")
+        }
+    }
 
     var boundingBox by remember {
         mutableStateOf(Rect(0f, 0f, 0f, 0f))
@@ -112,55 +97,46 @@ fun CameraScreen(
     val cameraAnalyzer = remember {
         CameraAnalyzer { imageProxy ->
             Log.d("CameraAnalyzer", "Image received: ${state.imageWidth}x${state.imageHeight}")
-            val mediaImage = imageProxy.image
-            if (mediaImage != null) {
-                val image =
-                    InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-
-                imageSize = Size(image.width, image.height)
-
-                objectDetector.process(image)
-                    .addOnSuccessListener { detectedObjects: MutableList<DetectedObject> ->
-                        detectedObjects.firstOrNull()?.let { detectedObject ->
-                            detectedObject.let {
 
 
-                                // Essas variaveis seram atribuidas no inicio sendo ajustadas para a escala da tela
-                                //--coordinateX = detectedObject.boundingBox.left.dp
-                                //--coordinateY = detectedObject.boundingBox.top.dp
+            imageSize = Size(imageProxy.width, imageProxy.height)
 
-                                val labels = detectedObject.labels.map { it.text }.toString()
+            objectDetector.processImage(
+                imageProxy,
+                onSuccess = { detectedObjects ->
+                    detectedObjects.firstOrNull()?.let { detectedObject ->
+                        detectedObject.let {
 
-                                val label = detectedObject.labels.firstOrNull()?.text.toString()
-                                //Busca o nome do produto detectado na base
-                                val product = ProductSample.findProductByName(label)
+                            val label = detectedObject.labels.firstOrNull()?.text.toString()
+                            //Busca o nome do produto detectado na base
+                            val product = ProductSample.findProductByName(label)
 
-                                if (product.name != state.textMessage) {
-                                    onNewProductDetected(product)
-                                }
-                                viewModel.setTextMessage(product.name)
-                                boundingBox = if (state.textMessage.isNullOrEmpty()) {
-                                    Rect(0f, 0f, 0f, 0f)
-                                } else {
-                                    detectedObject.boundingBox.toComposeRect()
-                                }
+                            if (product.name != state.textMessage) {
+                                onNewProductDetected(product)
                             }
-
-                            imageProxy.close()
-                        } ?: run {
-                            boundingBox = Rect(0f, 0f, 0f, 0f)
-                            imageProxy.close()
+                            viewModel.setTextMessage(product.name)
+                            boundingBox = if (state.textMessage.isNullOrEmpty()) {
+                                Rect(0f, 0f, 0f, 0f)
+                            } else {
+                                detectedObject.boundingBox.toComposeRect()
+                            }
                         }
+
+                        imageProxy.close()
+                    } ?: run {
+                        boundingBox = Rect(0f, 0f, 0f, 0f)
+                        imageProxy.close()
                     }
-                // Pass image to an ML Kit Vision API
-                // ...
-            }
-
-
+                },
+                onFailure = {
+                    imageProxy.close()
+                }
+            )
         }
+
     }
 
-    // 1 Camera Controller
+// 1 Camera Controller
     val cameraController = remember {
         LifecycleCameraController(context).apply {
             setEnabledUseCases(CameraController.IMAGE_ANALYSIS)
@@ -171,10 +147,10 @@ fun CameraScreen(
         }
     }
 
-    // 2 Camera Preview
+// 2 Camera Preview
     CameraPreview(cameraController = cameraController)
 
-    // 3 Overlay
+// 3 Overlay
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
