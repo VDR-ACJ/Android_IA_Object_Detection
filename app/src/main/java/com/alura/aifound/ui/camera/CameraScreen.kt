@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -67,69 +68,36 @@ fun CameraScreen(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current.applicationContext
 
+    LaunchedEffect(state.detectedProduct) {
+        state.detectedProduct?.let {
+            onNewProductDetected(it.product)
+        } ?: run {
+            onNewProductDetected(Product())
+        }
+
+    }
     val objectDetector = remember {
         ObjectDetectorProcessor().apply {
             setCustomModel("model_products")
+            //setCustomModel("model_a")
         }
     }
 
-    var boundingBox by remember {
-        mutableStateOf(Rect(0f, 0f, 0f, 0f))
-    }
-    var coordinateX by remember {
-        mutableStateOf(0.dp)
-    }
-
-    var coordinateY by remember {
-        mutableStateOf(0.dp)
-    }
-
-    var imageSize by remember {
-        mutableStateOf(Size(1, 1))
-    }
-    var screenSize by remember {
-        mutableStateOf(Size(1, 1))
-    }
-
-    coordinateX = (boundingBox.topLeft.x / imageSize.width * screenSize.width).pxToDp()
-    coordinateY = (boundingBox.topLeft.y / imageSize.height * screenSize.height).pxToDp()
 
     val cameraAnalyzer = remember {
         CameraAnalyzer { imageProxy ->
             Log.d("CameraAnalyzer", "Image received: ${state.imageWidth}x${state.imageHeight}")
 
-
-            imageSize = Size(imageProxy.width, imageProxy.height)
+            viewModel.setImageSize(imageProxy.width, imageProxy.height)
 
             objectDetector.processImage(
                 imageProxy,
                 onSuccess = { detectedObjects ->
                     detectedObjects.firstOrNull()?.let { detectedObject ->
-                        detectedObject.let {
-
-                            val label = detectedObject.labels.firstOrNull()?.text.toString()
-                            //Busca o nome do produto detectado na base
-                            val product = ProductSample.findProductByName(label)
-
-                            if (product.name != state.textMessage) {
-                                onNewProductDetected(product)
-                            }
-                            viewModel.setTextMessage(product.name)
-                            boundingBox = if (state.textMessage.isNullOrEmpty()) {
-                                Rect(0f, 0f, 0f, 0f)
-                            } else {
-                                detectedObject.boundingBox.toComposeRect()
-                            }
-                        }
-
-                        imageProxy.close()
+                        viewModel.setObjectDetected(detectedObject)
                     } ?: run {
-                        boundingBox = Rect(0f, 0f, 0f, 0f)
-                        imageProxy.close()
+                        viewModel.resetDetectedProduct()
                     }
-                },
-                onFailure = {
-                    imageProxy.close()
                 }
             )
         }
@@ -156,23 +124,16 @@ fun CameraScreen(
             .fillMaxSize()
             .background(Color.Black.copy(alpha = 0.2f))
     ) {
-        screenSize = Size(maxWidth.dpToPx().toInt(), maxHeight.dpToPx().toInt())
 
-        ObjectOverlay(
-            boundsObject = boundingBox,
-            nameObject = state.textMessage.toString(),
-            coordinateX = coordinateX,
-            coordinateY = coordinateY
-        )
-        /*Text(
-            text = state.textMessage ?: "Nenhum produto detectado",
-            fontSize = 20.sp,
-            color = Color.White,
-            textAlign = TextAlign.Center,
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth()
-        )*/
+        viewModel.setScreenSize(maxWidth.dpToPx().toInt(), maxHeight.dpToPx().toInt())
+        state.detectedProduct?.let {
+            ObjectOverlay(
+                boundsObject = it.boundingBox,
+                nameObject = it.product.name,
+                coordinateX = it.coordinateX.pxToDp(),
+                coordinateY = it.coordinateY.pxToDp()
+            )
+        }
 
         Log.d("CameraScreen", "Screen size: ${maxWidth.dpToPx()} x ${maxHeight.dpToPx()}")
     }

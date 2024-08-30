@@ -13,7 +13,7 @@ import com.google.mlkit.vision.objects.custom.CustomObjectDetectorOptions
 import com.google.mlkit.vision.objects.defaults.ObjectDetectorOptions
 
 class ObjectDetectorProcessor {
-    private lateinit var objectDetector: ObjectDetector
+    private var objectDetector: ObjectDetector
 
     init {
         val options = ObjectDetectorOptions.Builder()
